@@ -6,7 +6,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // Esta variable de entorno deberá estar en el .env de tu paquete de base de datos
   url      = env("DATABASE_URL")
 }
 
