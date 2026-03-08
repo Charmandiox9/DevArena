@@ -5,6 +5,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "postinstall": "turbo run generate",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
