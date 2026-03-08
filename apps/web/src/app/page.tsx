@@ -1,4 +1,5 @@
 // apps/web/src/app/page.tsx
+export const dynamic = 'force-dynamic';
 import { prisma } from '@devarena/database';
 
 export default async function Home() {
