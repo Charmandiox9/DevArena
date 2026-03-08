@@ -1,14 +1,215 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// /packages/database/prisma/schema.prisma
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  // Esta variable de entorno deberá estar en el .env de tu paquete de base de datos
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// ENUMS
+// -----------------------------------------------------------------------------
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+  EXTREME
+}
+
+enum VoteType {
+  UPVOTE
+  DOWNVOTE
+}
+
+// -----------------------------------------------------------------------------
+// MODELOS PRINCIPALES
+// -----------------------------------------------------------------------------
+
+model User {
+  id           String  @id @default(uuid())
+  email        String  @unique
+  username     String  @unique
+  passwordHash String
+  role         Role    @default(USER)
+  avatarUrl    String?
+
+  // Gamificación
+  xp         Int @default(0)
+  reputation Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  submissions  Submission[]
+  posts        Post[]
+  comments     Comment[]
+  votes        Vote[]
+  achievements UserAchievement[]
+
+  @@map("users")
+}
+
+model Category {
+  id          String  @id @default(uuid())
+  name        String  @unique // Ej: "Backend", "Security", "Debugging"
+  slug        String  @unique
+  description String?
+
+  challenges Challenge[]
+
+  @@map("categories")
+}
+
+model Challenge {
+  id               String     @id @default(uuid())
+  title            String
+  slug             String     @unique
+  description      String     @db.Text
+  difficulty       Difficulty
+  points           Int
+  expectedSolution String     @db.Text // El patrón, regex o AST esperado
+  isPublished      Boolean    @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  submissions Submission[]
+  forumPosts  Post[] // Hilos de discusión específicos de este reto
+
+  @@index([categoryId])
+  @@map("challenges")
+}
+
+model Submission {
+  id        String  @id @default(uuid())
+  content   String  @db.Text // Código o respuesta enviada
+  isCorrect Boolean
+  feedback  String? @db.Text // Explicación del error o éxito
+
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  challengeId String
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  @@index([userId, challengeId])
+  @@map("submissions")
+}
+
+// -----------------------------------------------------------------------------
+// FORO Y COMUNIDAD
+// -----------------------------------------------------------------------------
+
+model Post {
+  id       String  @id @default(uuid())
+  title    String
+  content  String  @db.Text
+  isPinned Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Opcional: Un post puede estar ligado a un reto específico o ser de discusión general
+  challengeId String?
+  challenge   Challenge? @relation(fields: [challengeId], references: [id], onDelete: SetNull)
+
+  comments Comment[]
+  votes    Vote[]
+
+  @@index([userId])
+  @@index([challengeId])
+  @@map("posts")
+}
+
+model Comment {
+  id         String  @id @default(uuid())
+  content    String  @db.Text
+  isAccepted Boolean @default(false) // Si el autor del Post marcó esto como la solución
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  // Respuestas anidadas (Self-relation)
+  parentId String?
+  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  Comment[] @relation("CommentReplies")
+
+  votes Vote[]
+
+  @@index([postId])
+  @@map("comments")
+}
+
+model Vote {
+  id   String   @id @default(uuid())
+  type VoteType
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relaciones polimórficas simuladas (Un voto pertenece a un Post O a un Comment)
+  postId String?
+  post   Post?   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  commentId String?
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  // Restricción a nivel de base de datos para evitar votos duplicados
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+  @@map("votes")
+}
+
+// -----------------------------------------------------------------------------
+// GAMIFICACIÓN AVANZADA
+// -----------------------------------------------------------------------------
+
+model Achievement {
+  id          String  @id @default(uuid())
+  name        String  @unique // Ej: "First Blood", "Bug Hunter"
+  description String
+  iconUrl     String?
+  criteria    String // Lógica interna para desbloquear (ej: "resolve_5_backend_challenges")
+
+  users UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  userId        String
+  achievementId String
+  unlockedAt    DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@id([userId, achievementId]) // Clave primaria compuesta
+  @@map("user_achievements")
 }
