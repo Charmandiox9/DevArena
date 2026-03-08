@@ -1,5 +1,3 @@
-// /packages/database/prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -31,6 +29,13 @@ enum VoteType {
   DOWNVOTE
 }
 
+enum SubmissionStatus {
+  PENDING
+  EVALUATING
+  ACCEPTED
+  REJECTED
+}
+
 // -----------------------------------------------------------------------------
 // MODELOS PRINCIPALES
 // -----------------------------------------------------------------------------
@@ -39,18 +44,16 @@ model User {
   id           String  @id @default(uuid())
   email        String  @unique
   username     String  @unique
-  passwordHash String
+  passwordHash String?
   role         Role    @default(USER)
   avatarUrl    String?
 
-  // Gamificación
   xp         Int @default(0)
   reputation Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relaciones
   submissions  Submission[]
   posts        Post[]
   comments     Comment[]
@@ -62,7 +65,7 @@ model User {
 
 model Category {
   id          String  @id @default(uuid())
-  name        String  @unique // Ej: "Backend", "Security", "Debugging"
+  name        String  @unique
   slug        String  @unique
   description String?
 
@@ -72,14 +75,14 @@ model Category {
 }
 
 model Challenge {
-  id               String     @id @default(uuid())
-  title            String
-  slug             String     @unique
-  description      String     @db.Text
-  difficulty       Difficulty
-  points           Int
-  expectedSolution String     @db.Text // El patrón, regex o AST esperado
-  isPublished      Boolean    @default(false)
+  id                String     @id @default(uuid())
+  title             String
+  slug              String     @unique
+  description       String     @db.Text
+  difficulty        Difficulty
+  points            Int
+  referenceSolution String?    @db.Text
+  isPublished       Boolean    @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -88,17 +91,18 @@ model Challenge {
   category   Category @relation(fields: [categoryId], references: [id])
 
   submissions Submission[]
-  forumPosts  Post[] // Hilos de discusión específicos de este reto
+  forumPosts  Post[]
+  testCases   TestCase[]
 
   @@index([categoryId])
   @@map("challenges")
 }
 
 model Submission {
-  id        String  @id @default(uuid())
-  content   String  @db.Text // Código o respuesta enviada
-  isCorrect Boolean
-  feedback  String? @db.Text // Explicación del error o éxito
+  id       String           @id @default(uuid())
+  content  String           @db.Text
+  status   SubmissionStatus @default(PENDING)
+  feedback String?          @db.Text
 
   createdAt DateTime @default(now())
 
@@ -128,7 +132,6 @@ model Post {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Opcional: Un post puede estar ligado a un reto específico o ser de discusión general
   challengeId String?
   challenge   Challenge? @relation(fields: [challengeId], references: [id], onDelete: SetNull)
 
@@ -143,7 +146,7 @@ model Post {
 model Comment {
   id         String  @id @default(uuid())
   content    String  @db.Text
-  isAccepted Boolean @default(false) // Si el autor del Post marcó esto como la solución
+  isAccepted Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -154,7 +157,6 @@ model Comment {
   postId String
   post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
 
-  // Respuestas anidadas (Self-relation)
   parentId String?
   parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies  Comment[] @relation("CommentReplies")
@@ -172,14 +174,12 @@ model Vote {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Relaciones polimórficas simuladas (Un voto pertenece a un Post O a un Comment)
   postId String?
   post   Post?   @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   commentId String?
   comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
 
-  // Restricción a nivel de base de datos para evitar votos duplicados
   @@unique([userId, postId])
   @@unique([userId, commentId])
   @@map("votes")
@@ -191,10 +191,10 @@ model Vote {
 
 model Achievement {
   id          String  @id @default(uuid())
-  name        String  @unique // Ej: "First Blood", "Bug Hunter"
+  name        String  @unique
   description String
   iconUrl     String?
-  criteria    String // Lógica interna para desbloquear (ej: "resolve_5_backend_challenges")
+  criteria    String
 
   users UserAchievement[]
 
@@ -209,6 +209,23 @@ model UserAchievement {
   user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
 
-  @@id([userId, achievementId]) // Clave primaria compuesta
+  @@id([userId, achievementId])
   @@map("user_achievements")
+}
+
+model TestCase {
+  id             String  @id @default(uuid())
+  input          String  @db.Text
+  expectedOutput String  @db.Text
+  isHidden       Boolean @default(false)
+  weight         Int     @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  challengeId String
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  @@index([challengeId])
+  @@map("test_cases")
 }
