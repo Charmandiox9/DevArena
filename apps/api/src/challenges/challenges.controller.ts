@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Param } from '@nestjs/common';
 import { ChallengesService } from './challenges.service';
 import { CreateChallengeDto } from './dto/create-challenge.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -20,5 +20,10 @@ export class ChallengesController {
   @Get()
   findAll() {
     return this.challengesService.findAll();
+  }
+
+  @Get(':slug')
+  findBySlug(@Param('slug') slug: string) {
+    return this.challengesService.findBySlug(slug);
   }
 }

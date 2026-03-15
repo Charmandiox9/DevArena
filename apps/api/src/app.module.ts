@@ -6,6 +6,7 @@ import { PrismaService } from './prisma.service';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { ChallengesModule } from './challenges/challenges.module';
+import { SubmissionsModule } from './submissions/submissions.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ChallengesModule } from './challenges/challenges.module';
     UsersModule,
     AuthModule,
     ChallengesModule,
+    SubmissionsModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

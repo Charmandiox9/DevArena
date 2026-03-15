@@ -39,4 +39,23 @@ export class ChallengesService {
       },
     });
   }
+
+  async findBySlug(slug: string) {
+    const challenge = await this.prisma.challenge.findUnique({
+      where: { slug },
+      include: {
+        category: true,
+        testCases: {
+          where: { isHidden: false },
+        },
+      },
+    });
+
+    if (!challenge) {
+      throw new Error('Reto no encontrado');
+    }
+
+    const { referenceSolution, ...safeChallenge } = challenge;
+    return safeChallenge;
+  }
 }
